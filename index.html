@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Солнечная система — интерактивное путешествие</title>
+<meta name="description" content="Одностраничное 3D-путешествие по Солнечной системе: от Солнца до Нептуна, с интересными фактами о каждой планете.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='35%25'%3E%3Cstop offset='0%25' stop-color='%23ffe9b0'/%3E%3Cstop offset='60%25' stop-color='%23f2a54a'/%3E%3Cstop offset='100%25' stop-color='%23c95d1e'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='%23070a13'/%3E%3Ccircle cx='16' cy='16' r='9' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./fonts/fonts.css">
+<style>
+:root{
+  --bg:#05070d;
+  --ink:#e9eef7;
+  --muted:#9dabC4;
+  --muted:#9dabc4;
+  --line:rgba(160,180,220,.14);
+  --acc:#f2b35c;
+  --card:rgba(9,13,24,.58);
+  --font-d:'Unbounded',system-ui,sans-serif;
+  --font-b:'Manrope',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--font-b);font-size:17px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+::selection{background:rgba(242,179,92,.28)}
+
+/* ————— 3D canvas & fallback ————— */
+#scene{position:fixed;inset:0;z-index:0;display:block;pointer-events:none}
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 45%,transparent 55%,rgba(2,4,9,.55) 100%)}
+.poster{position:fixed;inset:0;z-index:0;display:none;
+  background:
+    radial-gradient(1px 1px at 12% 22%,#fff9 50%,transparent 51%),
+    radial-gradient(1.5px 1.5px at 78% 12%,#fff7 50%,transparent 51%),
+    radial-gradient(1px 1px at 62% 64%,#fff6 50%,transparent 51%),
+    radial-gradient(2px 2px at 30% 78%,#ffe9b099 50%,transparent 51%),
+    radial-gradient(1px 1px at 88% 82%,#fff8 50%,transparent 51%),
+    radial-gradient(60% 60% at 18% 60%,rgba(242,165,74,.20),transparent 70%),
+    linear-gradient(180deg,#070a13,#04060b);}
+body.no-webgl #scene{display:none}
+body.no-webgl .poster{display:block}
+
+/* ————— layout ————— */
+main{position:relative;z-index:2}
+section{position:relative;min-height:120vh;display:flex;align-items:center;padding:12vh 6vw}
+section.hero{min-height:100vh}
+section .panel{width:min(560px,92vw)}
+section:nth-of-type(even) .panel{margin-left:auto}
+
+/* ————— panels ————— */
+.panel{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:22px;
+  padding:clamp(24px,3.4vw,44px);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  box-shadow:0 30px 80px rgba(0,0,0,.45);
+}
+.eyebrow{
+  display:flex;align-items:center;gap:12px;
+  font-size:12px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--acc,#f2b35c);margin:0 0 14px;
+}
+.eyebrow::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,var(--acc,#f2b35c),transparent)}
+h1,h2{font-family:var(--font-d);margin:0;line-height:1.08;font-weight:800;letter-spacing:.01em}
+h1{font-size:clamp(2.5rem,7.2vw,5.4rem)}
+h2{font-size:clamp(1.9rem,4.6vw,3.1rem)}
+.lead{font-size:clamp(1.05rem,1.6vw,1.25rem);color:var(--ink);margin:18px 0 0;max-width:34em}
+.facts{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:16px}
+.facts li{position:relative;padding-left:22px;color:#c6d1e4;font-size:15.5px}
+.facts li::before{content:"";position:absolute;left:2px;top:.62em;width:7px;height:7px;border-radius:50%;
+  background:var(--acc,#f2b35c);box-shadow:0 0 12px var(--acc,#f2b35c)}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin:28px 0 0;padding:0;list-style:none}
+.stats li{
+  border:1px solid var(--line);border-radius:12px;padding:9px 14px;
+  font-size:12.5px;color:var(--muted);letter-spacing:.04em;
+}
+.stats b{display:block;font-size:14.5px;font-weight:700;color:var(--ink);letter-spacing:0;margin-top:2px}
+
+/* per-planet accents */
+section[data-acc] .panel{--acc:var(--acc)}
+
+/* ————— hero ————— */
+.hero-inner{max-width:900px}
+.hero .eyebrow{color:#8fa8d0}
+.hero .eyebrow::after{background:linear-gradient(90deg,#8fa8d0,transparent)}
+.hero h1 span{
+  background:linear-gradient(100deg,#ffe9b0 10%,#f2a54a 45%,#e8793a 80%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero .lead{color:#b9c6dd;max-width:36em}
+.scroll-cue{
+  display:inline-flex;align-items:center;gap:14px;margin-top:44px;
+  color:#8fa8d0;font-size:13px;letter-spacing:.24em;text-transform:uppercase;text-decoration:none;
+}
+.scroll-cue .line{position:relative;width:1px;height:52px;background:rgba(143,168,208,.25);overflow:hidden}
+.scroll-cue .line::after{content:"";position:absolute;left:0;top:-50%;width:100%;height:50%;
+  background:linear-gradient(180deg,transparent,#f2b35c);animation:drip 1.8s ease-in-out infinite}
+@keyframes drip{to{top:110%}}
+
+/* ————— finale ————— */
+.finale{min-height:130vh;align-items:center}
+.finale .panel{width:min(680px,92vw);margin:0 auto;text-align:center}
+.finale .eyebrow{justify-content:center}
+.finale .eyebrow::before{content:"";height:1px;flex:1;background:linear-gradient(-90deg,var(--acc),transparent)}
+.quote{font-family:var(--font-d);font-weight:400;font-size:clamp(1.15rem,2.4vw,1.6rem);line-height:1.5;margin:22px 0 0;color:#dfe7f4}
+.quote-footer{margin:16px 0 0;color:var(--muted);font-size:14px}
+.big-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:34px 0 0}
+.big-stats div{border:1px solid var(--line);border-radius:14px;padding:16px 10px}
+.big-stats b{display:block;font-family:var(--font-d);font-weight:600;font-size:clamp(1.3rem,2.6vw,1.9rem);color:#ffe9b0}
+.big-stats span{font-size:12.5px;color:var(--muted);letter-spacing:.05em}
+.btn{
+  display:inline-block;margin-top:36px;padding:15px 34px;border-radius:999px;
+  font-family:var(--font-d);font-size:13px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:#0a0d16;background:linear-gradient(100deg,#ffe9b0,#f2a54a);text-decoration:none;
+  transition:transform .18s ease,box-shadow .18s ease;cursor:pointer;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 14px 40px rgba(242,165,74,.35)}
+.btn:focus-visible{outline:2px solid #ffe9b0;outline-offset:3px}
+.credits{margin:44px 0 0;font-size:12.5px;color:#66738c;letter-spacing:.04em}
+
+/* ————— side navigation ————— */
+.nav{
+  position:fixed;right:26px;top:50%;transform:translateY(-50%);z-index:10;
+  display:flex;flex-direction:column;gap:14px;
+}
+.nav a{
+  display:flex;align-items:center;gap:10px;flex-direction:row-reverse;
+  text-decoration:none;color:var(--muted);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+}
+.nav a .dot{
+  width:9px;height:9px;border-radius:50%;flex:none;
+  background:rgba(160,180,220,.25);border:1px solid rgba(160,180,220,.3);
+  transition:background .2s ease,box-shadow .2s ease,transform .2s ease;
+}
+.nav a span{opacity:0;transform:translateX(6px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}
+.nav a:hover span,.nav a:focus-visible span{opacity:1;transform:none}
+.nav a:hover .dot,.nav a:focus-visible .dot{background:#f2b35c}
+.nav a:focus-visible{outline:none}
+.nav a:focus-visible .dot{outline:2px solid #ffe9b0;outline-offset:3px}
+.nav a.active{color:#ffe9b0}
+.nav a.active .dot{background:#f2b35c;box-shadow:0 0 14px #f2b35c;transform:scale(1.25)}
+
+.progress-top{position:fixed;top:0;left:0;height:2px;width:100%;z-index:10;transform-origin:0 50%;
+  transform:scaleX(0);background:linear-gradient(90deg,#ffe9b0,#e8793a)}
+
+/* ————— reveal ————— */
+html.js .panel{opacity:0;transform:translateY(28px) scale(.985);
+  transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}
+html.js .panel.in{opacity:1;transform:none}
+html.js .hero-inner>*{opacity:0;transform:translateY(24px);
+  transition:opacity .9s ease,transform .9s cubic-bezier(.2,.7,.2,1)}
+html.js .hero-inner.in>*{opacity:1;transform:none}
+html.js .hero-inner.in>*:nth-child(2){transition-delay:.12s}
+html.js .hero-inner.in>*:nth-child(3){transition-delay:.24s}
+html.js .hero-inner.in>*:nth-child(4){transition-delay:.36s}
+@media (prefers-reduced-motion:reduce){
+  html.js .panel,html.js .hero-inner>*{opacity:1;transform:none;transition:none}
+  .scroll-cue .line::after{animation:none}
+}
+
+@media (max-width:760px){
+  body{font-size:15.5px}
+  section{padding:14vh 5vw;min-height:110vh}
+  .nav{display:none}
+  .panel{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+<div class="poster" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="progress-top" aria-hidden="true"></div>
+
+<nav class="nav" aria-label="Остановки путешествия">
+  <a href="#sun" data-stop="sun"><span>Солнце</span><i class="dot"></i></a>
+  <a href="#mercury" data-stop="mercury"><span>Меркурий</span><i class="dot"></i></a>
+  <a href="#venus" data-stop="venus"><span>Венера</span><i class="dot"></i></a>
+  <a href="#earth" data-stop="earth"><span>Земля</span><i class="dot"></i></a>
+  <a href="#mars" data-stop="mars"><span>Марс</span><i class="dot"></i></a>
+  <a href="#jupiter" data-stop="jupiter"><span>Юпитер</span><i class="dot"></i></a>
+  <a href="#saturn" data-stop="saturn"><span>Сатурн</span><i class="dot"></i></a>
+  <a href="#uranus" data-stop="uranus"><span>Уран</span><i class="dot"></i></a>
+  <a href="#neptune" data-stop="neptune"><span>Нептун</span><i class="dot"></i></a>
+  <a href="#finale" data-stop="finale"><span>Финал</span><i class="dot"></i></a>
+</nav>
+
+<main id="top">
+
+  <section class="hero" id="hero" data-stop="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">Интерактивный вояж · 10 остановок</p>
+      <h1>Солнечная<br><span>система</span></h1>
+      <p class="lead">Путешествие от раскалённого сердца системы до её ледяных окраин. Десять остановок, десятки фактов и одна бледно-голубая точка, которую мы зовём домом.</p>
+      <p style="margin:0"><a class="scroll-cue" href="#sun"><i class="line"></i>Листайте вниз — стартуем от Солнца</a></p>
+    </div>
+  </section>
+
+  <section id="sun" data-stop="sun" style="--acc:#f2b35c">
+    <div class="panel">
+      <p class="eyebrow">00 · Звезда</p>
+      <h2>Солнце</h2>
+      <p class="lead">99,86% всей массы системы сосредоточено здесь. Всё остальное — планеты, спутники, мы с вами — лёгкая пыль на фоне этой звезды.</p>
+      <ul class="facts">
+        <li>Свету нужно 8 минут 20 секунд, чтобы добраться до Земли: мы всегда видим Солнце таким, каким оно было в прошлом.</li>
+        <li>Парадокс короны: поверхность разогрета до 5 500 °C, а атмосфера над ней — до двух миллионов градусов. Почему так — загадка до сих пор.</li>
+        <li>Каждую секунду Солнце превращает около 4 миллионов тонн вещества в чистую энергию — и запасов хватит ещё на 5 миллиардов лет.</li>
+      </ul>
+      <ul class="stats">
+        <li>Тип<b>жёлтый карлик G2V</b></li>
+        <li>Диаметр<b>1,39 млн км</b></li>
+        <li>Возраст<b>4,6 млрд лет</b></li>
+        <li>t° ядра<b>15 млн °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="mercury" data-stop="mercury" style="--acc:#c9a27e">
+    <div class="panel">
+      <p class="eyebrow">01 · Каменистая планета</p>
+      <h2>Меркурий</h2>
+      <p class="lead">Самая быстрая и самая «невезучая» планета: год длится 88 дней, а сутки — 176 земных дней.</p>
+      <ul class="facts">
+        <li>Самый жестокий перепад температур в системе: от −180 °C ночью до +430 °C днём.</li>
+        <li>Несмотря на близость к Солнцу, в вечной тени полярных кратеров прячется водяной лёд.</li>
+        <li>Планета сжимается: остывая, Меркурий «усох» почти на 7 км в радиусе и покрылся морщинами-эскарпами.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>58 млн км</b></li>
+        <li>Диаметр<b>4 879 км</b></li>
+        <li>Год<b>88 дней</b></li>
+        <li>t°<b>−180…+430 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="venus" data-stop="venus" style="--acc:#e8c07a">
+    <div class="panel">
+      <p class="eyebrow">02 · Каменистая планета</p>
+      <h2>Венера</h2>
+      <p class="lead">Рай снаружи, ад внутри. Самая горячая планета системы — стабильные +465 °C у поверхности.</p>
+      <ul class="facts">
+        <li>Венера вращается в обратную сторону: Солнце там восходит на западе. А день на Венере длиннее целого года.</li>
+        <li>Давление у поверхности — 92 земные атмосферы: как на глубине 900 метров в океане.</li>
+        <li>Облака из серной кислоты зеркалят свет: Венера — самый яркий объект земного неба после Солнца и Луны.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>108 млн км</b></li>
+        <li>Диаметр<b>12 104 км</b></li>
+        <li>Год<b>225 дней</b></li>
+        <li>t°<b>+465 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="earth" data-stop="earth" style="--acc:#6fb1e8">
+    <div class="panel">
+      <p class="eyebrow">03 · Каменистая планета</p>
+      <h2>Земля</h2>
+      <p class="lead">Единственное известное место во Вселенной, где есть жизнь. Пока что — единственное.</p>
+      <ul class="facts">
+        <li>71% поверхности накрыто жидкой водой, и стабильный океан существует уже около четырёх миллиардов лет.</li>
+        <li>Луна работает гироскопом: она стабилизирует наклон земной оси и не даёт климату сходить с ума.</li>
+        <li>Земля — самая плотная планета системы и единственная с действующей тектоникой плит.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>150 млн км · 1 а.е.</b></li>
+        <li>Диаметр<b>12 742 км</b></li>
+        <li>Год<b>365,25 дня</b></li>
+        <li>Средняя t°<b>+15 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="mars" data-stop="mars" style="--acc:#e07a4e">
+    <div class="panel">
+      <p class="eyebrow">04 · Каменистая планета</p>
+      <h2>Марс</h2>
+      <p class="lead">Красная пустыня, по которой когда-то текли реки. Следующая остановка человечества.</p>
+      <ul class="facts">
+        <li>Вулкан Олимп — высочайшая гора Солнечной системы: почти 22 км, в два с половиной раза выше Эвереста.</li>
+        <li>Закаты на Марсе голубые: пыль рассеивает свет наоборот, и у заходящего Солнца собирается синий ореол.</li>
+        <li>Пылевые бури способны накрывать всю планету на месяцы — именно такая буря погубила ровер «Оппортьюнити».</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>228 млн км</b></li>
+        <li>Диаметр<b>6 779 км</b></li>
+        <li>Год<b>687 дней</b></li>
+        <li>Средняя t°<b>−63 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="jupiter" data-stop="jupiter" style="--acc:#d8a06a">
+    <div class="panel">
+      <p class="eyebrow">05 · Газовый гигант</p>
+      <h2>Юпитер</h2>
+      <p class="lead">Гигант-щит: его гравитация миллиарды лет отводит от Земли кометы и астероиды.</p>
+      <ul class="facts">
+        <li>Большое красное пятно — шторм шире всей Земли, который не стихает уже несколько столетий.</li>
+        <li>Сутки короче десяти часов: это самая быстро вращающаяся планета, и потому она заметно сплюснута у полюсов.</li>
+        <li>У Юпитера 95 подтверждённых спутников — целая мини-система, включая Европу с подлёдным океаном.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>778 млн км</b></li>
+        <li>Диаметр<b>139 820 км</b></li>
+        <li>Год<b>12 лет</b></li>
+        <li>t° облаков<b>−110 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="saturn" data-stop="saturn" style="--acc:#e3c98f">
+    <div class="panel">
+      <p class="eyebrow">06 · Газовый гигант</p>
+      <h2>Сатурн</h2>
+      <p class="lead">Господин колец. Его средняя плотность меньше плотности воды — в гигантском океане он бы плавал.</p>
+      <ul class="facts">
+        <li>Кольца раскинулись на 280 000 км, но их толщина местами — всего около десяти метров.</li>
+        <li>На северном полюсе бушует почти идеальный шестиугольный шторм диаметром 25 000 км.</li>
+        <li>Спутник Энцелад выстреливает в космос гейзеры солёной воды из подлёдного океана — и подпитывает кольца.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>1,43 млрд км</b></li>
+        <li>Диаметр<b>116 460 км</b></li>
+        <li>Год<b>29 лет</b></li>
+        <li>t°<b>−140 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="uranus" data-stop="uranus" style="--acc:#8fd6d2">
+    <div class="panel">
+      <p class="eyebrow">07 · Ледяной гигант</p>
+      <h2>Уран</h2>
+      <p class="lead">Планета, которая катится по орбите лёжа на боку: наклон её оси — 98 градусов.</p>
+      <ul class="facts">
+        <li>Вероятно, древний удар опрокинул Уран набок: теперь его полюса по очереди смотрят прямо на Солнце.</li>
+        <li>Это самая холодная атмосфера системы: −224 °C — холоднее, чем у более далёкого Нептуна.</li>
+        <li>Метан поглощает красную часть спектра, окрашивая планету в спокойный бирюзовый.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>2,87 млрд км</b></li>
+        <li>Диаметр<b>50 724 км</b></li>
+        <li>Год<b>84 года</b></li>
+        <li>t°<b>−224 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="neptune" data-stop="neptune" style="--acc:#7a9fe8">
+    <div class="panel">
+      <p class="eyebrow">08 · Ледяной гигант</p>
+      <h2>Нептун</h2>
+      <p class="lead">Последний гигант, найденный «на кончике пера» — по возмущениям орбиты Урана, прежде чем в телескоп.</p>
+      <ul class="facts">
+        <li>Здесь дуют самые быстрые ветры Солнечной системы — до 2 100 км/ч, быстрее скорости звука.</li>
+        <li>Один нептунианский год — 165 земных: с момента открытия в 1846 году планета завершила лишь один оборот, в 2011-м.</li>
+        <li>Свет летит сюда от Солнца больше четырёх часов: полдень на Нептуне темнее земных сумерек.</li>
+      </ul>
+      <ul class="stats">
+        <li>От Солнца<b>4,5 млрд км</b></li>
+        <li>Диаметр<b>49 244 км</b></li>
+        <li>Год<b>165 лет</b></li>
+        <li>t°<b>−214 °C</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="finale" id="finale" data-stop="finale" style="--acc:#ffe9b0">
+    <div class="panel">
+      <p class="eyebrow">Финал · 6 млрд км от дома</p>
+      <h2>Бледно-голубая точка</h2>
+      <p class="quote">«Взгляните ещё раз на эту точку. Это здесь. Это дом. Это мы».</p>
+      <p class="quote-footer">Карл Саган — о фотографии, которую «Вояджер-1» снял в 1990 году, обернувшись с расстояния шести миллиардов километров. На ней Земля занимает меньше одного пикселя.</p>
+      <div class="big-stats">
+        <div><b>8</b><span>планет в системе</span></div>
+        <div><b>4,6 млрд</b><span>лет возраст</span></div>
+        <div><b>99,86%</b><span>массы — у Солнца</span></div>
+        <div><b>4 часа</b><span>свету до Нептуна</span></div>
+        <div><b>1</b><span>планета с жизнью</span></div>
+      </div>
+      <a class="btn" href="#top">Вернуться к Солнцу</a>
+      <p class="credits">Интерактивный лендинг · сцена построена на Three.js, все текстуры планет сгенерированы процедурно</p>
+    </div>
+  </section>
+
+</main>
+<script type="module" src="./src/scene.js"></script>
+</body>
+</html>
